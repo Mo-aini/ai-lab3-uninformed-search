@@ -1,0 +1,101 @@
+AI Lab 3: Uninformed Search | Mohammed Emad ALaini
+Python 3.11.6, standard library only
+
+========================================================================
+LAB 3 / Task 1  BFS and DFS on the supplied A-G graph (start A, goal G)
+========================================================================
+graph = {'A': ['B', 'C'], 'B': ['D', 'E'], 'C': ['F'], 'D': [], 'E': ['G'], 'F': [], 'G': []}
+
+BFS trace (FIFO queue, successors left to right):
+step | processed node | path to node | successors added | queue after step (front -> back)
+0 | - | - | - | [A]
+1 | A | A | B, C | [A-B, A-C]
+2 | B | A-B | D, E | [A-C, A-B-D, A-B-E]
+3 | C | A-C | F | [A-B-D, A-B-E, A-C-F]
+4 | D | A-B-D | none | [A-B-E, A-C-F]
+5 | E | A-B-E | G | [A-C-F, A-B-E-G]
+6 | F | A-C-F | none | [A-B-E-G]
+7 | G | A-B-E-G | goal test true: stop | []
+BFS visit order: A, B, C, D, E, F, G
+BFS final path : A -> B -> E -> G
+
+DFS trace (LIFO stack, successors pushed in reversed order):
+step | processed node | path to node | successors added | stack after step (bottom -> top)
+0 | - | - | - | [A]
+1 | A | A | push C, B | [A-C, A-B]
+2 | B | A-B | push E, D | [A-C, A-B-E, A-B-D]
+3 | D | A-B-D | none | [A-C, A-B-E]
+4 | E | A-B-E | push G | [A-C, A-B-E-G]
+5 | G | A-B-E-G | goal test true: stop | [A-C]
+DFS visit order: A, B, D, E, G
+DFS final path : A -> B -> E -> G
+
+Verification against the supplied code:
+  print(bfs('A','G')) -> ['A', 'B', 'E', 'G'] | trace agrees: True
+  print(dfs('A','G')) -> ['A', 'B', 'E', 'G'] | trace agrees: True
+
+========================================================================
+LAB 3 / Task 2  DLS and IDDFS (root depth 0, path-local cycle check)
+========================================================================
+DLS on the original graph, start A, goal G:
+limit | status | path | nodes processed | processing order
+1 | CUTOFF | - | 3 | A, B, C
+2 | CUTOFF | - | 6 | A, B, D, E, C, F
+3 | FOUND | A-B-E-G | 5 | A, B, D, E, G
+4 | FOUND | A-B-E-G | 5 | A, B, D, E, G
+
+IDDFS with maximum depth 1, 2, 3 and 4:
+max depth | status | path | limits attempted (status, nodes) | total nodes processed
+1 | CUTOFF | - | L0 CUTOFF 1; L1 CUTOFF 3 | 4
+2 | CUTOFF | - | L0 CUTOFF 1; L1 CUTOFF 3; L2 CUTOFF 6 | 10
+3 | FOUND | A-B-E-G | L0 CUTOFF 1; L1 CUTOFF 3; L2 CUTOFF 6; L3 FOUND 5 | 15
+4 | FOUND | A-B-E-G | L0 CUTOFF 1; L1 CUTOFF 3; L2 CUTOFF 6; L3 FOUND 5 | 15
+
+Per-iteration processing order for IDDFS(max depth 4) - shows the repeated shallow work:
+  limit 0: A -> CUTOFF
+  limit 1: A, B, C -> CUTOFF
+  limit 2: A, B, D, E, C, F -> CUTOFF
+  limit 3: A, B, D, E, G -> FOUND
+
+Edge-case tests (Section 3.8):
+  start == goal (G->G, limit 0): FOUND G processed ['G']
+  unreachable goal (C->G, limit 4): FAILURE - processed ['C', 'F']
+  cyclic graph (added E->B and D->A): {'A': ['B', 'C'], 'B': ['D', 'E'], 'C': ['F'], 'D': ['A'], 'E': ['B', 'G'], 'F': [], 'G': []}
+    DLS limit 2: CUTOFF -, processed 6 nodes (no infinite loop)
+    DLS limit 3: FOUND A-B-E-G, processed 5 nodes (no infinite loop)
+    DLS limit 6: FOUND A-B-E-G, processed 5 nodes (no infinite loop)
+    cyclic graph, goal Z not in graph, limit 10: FAILURE - path-local check prunes cycles, so the search ends
+
+========================================================================
+LAB 3 / Task 3  Weighted corridor extension: UCS vs BFS
+========================================================================
+Edge weights (directed, successor order as listed):
+  A -> B : 1
+  A -> C : 2
+  B -> D : 4
+  B -> E : 1
+  C -> F : 3
+  C -> G : 10   (added corridor, Section 3.7)
+  E -> G : 1
+
+UCS processing log:
+step | node | g | path | pushed / note | frontier after (path:g, cheapest first)
+1 | A | 0 | A | B(g=0+1=1), C(g=0+2=2) | [A-B:1, A-C:2]
+2 | B | 1 | A-B | D(g=1+4=5), E(g=1+1=2) | [A-C:2, A-B-E:2, A-B-D:5]
+3 | C | 2 | A-C | F(g=2+3=5), G(g=2+10=12) | [A-B-E:2, A-B-D:5, A-C-F:5, A-C-G:12]
+4 | E | 2 | A-B-E | G(g=2+1=3) | [A-B-E-G:3, A-B-D:5, A-C-F:5, A-C-G:12]
+5 | G | 3 | A-B-E-G | goal processed: stop | [A-B-D:5, A-C-F:5, A-C-G:12]
+UCS processing order: A, B, C, E, G
+UCS path: A-B-E-G | reported cost 3 | independent sum A->B=1 + B->E=1 + E->G=1 = 3 | agree: True
+
+BFS processing order: A, B, C, D, E, F, G
+BFS path: A-C-G | hops 2 | cost A->C=2 + C->G=10 = 12
+
+algorithm | path | hops | total cost
+BFS | A-C-G | 2 | 12
+UCS | A-B-E-G | 3 | 3
+
+Edge-case tests:
+  start == goal (A->A): (0, ['A'])
+  unreachable goal (D->G): (None, None) (None = no path)
+  cyclic graph (added E->B, weight 1): 3 A-B-E-G processing order A, B, C, E, G
